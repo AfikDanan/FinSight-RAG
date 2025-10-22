@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ],
+      "env": {},
+      "disabled": true,
+      "autoApprove": []
+    },
+    "Context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp",
+        "--api-key",
+        "ctx7sk-cc345583-8a9f-4c7e-b62a-09571920dbf4"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
