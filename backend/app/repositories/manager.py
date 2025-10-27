@@ -4,8 +4,10 @@ Provides a unified interface for accessing all repositories with proper session 
 """
 
 from sqlalchemy.orm import Session
-from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional, AsyncContextManager
 import logging
+from contextlib import asynccontextmanager
 
 from app.database import get_db
 from app.repositories.company import CompanyRepository
@@ -81,6 +83,26 @@ class RepositoryManager:
         except Exception as e:
             logger.error(f"Error closing database session: {e}")
             raise
+    
+    @asynccontextmanager
+    async def get_async_session(self) -> AsyncContextManager[Session]:
+        """
+        Get async database session context manager.
+        
+        Yields:
+            Database session for async operations
+        """
+        try:
+            # For now, we'll use the sync session
+            # In a full async implementation, this would use AsyncSession
+            yield self.db
+        except Exception as e:
+            logger.error(f"Error in async session: {e}")
+            self.db.rollback()
+            raise
+        finally:
+            # Session cleanup is handled by the context manager
+            pass
 
 
 def get_repository_manager(db: Session = None) -> RepositoryManager:
