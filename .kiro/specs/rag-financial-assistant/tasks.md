@@ -1,44 +1,21 @@
 # Implementation Plan
 
 - [x] 1. Update React frontend for on-demand processing workflow
-
-
-
-
-
-
   - [x] 1.1 Create company ticker input and time range selection interface
-
-
     - Build CompanyInputForm component with ticker validation
     - Add time range selector (1, 3, 5 years) with Material-UI components
     - Implement ticker validation API integration with real-time feedback
     - Create form submission handling for processing initiation
     - _Requirements: 1.1, 1.2, 1.3_
   
-
-
   - [x] 1.2 Build processing status monitoring interface
-
-
-
-
-
     - Create ProcessingStatusPanel component with progress indicators
     - Implement real-time status updates using WebSocket or polling
     - Add progress visualization for scraping, parsing, chunking, and vectorizing phases
     - Create estimated time remaining display and cancel functionality
-
-
-
     - _Requirements: 1.5, 7.1, 7.3_
   
   - [x] 1.3 Implement workflow phase management in Zustand store
-
-
-
-
-
     - Update state management for multi-phase workflow (input → processing → chat)
     - Add processing status tracking and progress state management
     - Implement phase transitions and error state handling
@@ -51,22 +28,25 @@
     - Test workflow phase transitions and state management
     - _Requirements: 1.1, 1.5, 7.1_
 
-- [ ] 2. Implement SEC EDGAR scraping service in FastAPI backend
-  - [ ] 2.1 Create SEC EDGAR scraper with rate limiting
+- [x] 2. Implement SEC EDGAR scraping service in FastAPI backend
+
+  - [x] 2.1 Create SEC EDGAR scraper with rate limiting
     - Build SECEdgarScraper class with proper rate limiting and headers
     - Implement company CIK lookup and filing search functionality
-    - Add support for different filing types (10-K, 10-Q, 8-K, DEF 14A)
+    - Add support for different filing types (10-K, 10-Q, 8-K, 20-f, 4)
     - Create date range filtering for user-selected time periods
     - _Requirements: 2.1, 2.2, 8.1_
   
-  - [ ] 2.2 Build document download and storage system
+  - [x] 2.2 Build document download and storage system
     - Implement filing content download with retry logic and error handling
     - Create document storage in PostgreSQL with metadata tracking
     - Add document deduplication and version management
     - Implement progress tracking and status updates for scraping operations
     - _Requirements: 2.1, 2.5, 6.2_
   
-  - [ ] 2.3 Create processing request API endpoints
+  - [x] 2.3 Create processing request API endpoints
+
+
     - Build /api/companies/process endpoint for initiating document processing
     - Implement /api/companies/{ticker}/status endpoint for progress tracking
     - Add ticker validation endpoint with company name resolution
