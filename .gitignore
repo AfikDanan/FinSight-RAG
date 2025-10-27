@@ -9,6 +9,7 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+*/data
 downloads/
 eggs/
 .eggs/
