@@ -43,6 +43,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173"
     ]
     
+    # Document storage settings
+    document_storage_path: str = "./data/documents"
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

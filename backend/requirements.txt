@@ -20,6 +20,7 @@ python-multipart==0.0.6
 # HTTP client and external APIs
 httpx==0.25.2
 requests==2.31.0
+aiofiles==23.2.1
 
 # Background tasks and caching
 celery==5.3.4
