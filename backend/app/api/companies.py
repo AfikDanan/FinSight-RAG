@@ -11,6 +11,7 @@ from app.models.company import (
 )
 from pydantic import BaseModel
 from app.services.company_service import CompanyService
+from app.services.processing_service import get_processing_service, ProcessingService
 import uuid
 
 # Configure logging
@@ -31,9 +32,12 @@ class CompanyProcessingResponse(BaseModel):
     status: str
     message: str
 
-# Dependency to get company service
+# Dependencies
 def get_company_service() -> CompanyService:
     return CompanyService()
+
+def get_processing_service_dep() -> ProcessingService:
+    return get_processing_service()
 
 
 @router.get("/search", response_model=CompanySearchResponse)
@@ -237,7 +241,8 @@ async def validate_ticker(
 @router.post("/process", response_model=CompanyProcessingResponse)
 async def start_company_processing(
     request: CompanyProcessingRequest,
-    company_service: CompanyService = Depends(get_company_service)
+    company_service: CompanyService = Depends(get_company_service),
+    processing_service: ProcessingService = Depends(get_processing_service_dep)
 ):
     """
     Start processing SEC filings for a company.
@@ -265,29 +270,28 @@ async def start_company_processing(
                 detail="Time range must be 1, 3, or 5 years"
             )
         
-        # Generate a job ID for tracking
-        job_id = str(uuid.uuid4())
-        
-        # TODO: In future tasks, this will:
-        # 1. Start background job to scrape SEC filings
-        # 2. Process and chunk documents
-        # 3. Create vector embeddings
-        # 4. Store in database
-        
-        # For now, return a successful response
-        response = CompanyProcessingResponse(
-            jobId=job_id,
+        # Start processing
+        status = await processing_service.start_processing(
             ticker=normalized_ticker,
-            timeRange=request.timeRange,
-            status="started",
-            message=f"Processing started for {normalized_ticker} ({request.timeRange} years)"
+            time_range=request.timeRange
         )
         
-        logger.info(f"Processing job {job_id} started for {normalized_ticker}")
+        response = CompanyProcessingResponse(
+            jobId=status.job_id,
+            ticker=status.ticker,
+            timeRange=status.time_range,
+            status=status.phase.value,
+            message=f"Processing started for {status.ticker} ({status.time_range} years)"
+        )
+        
+        logger.info(f"Processing job {status.job_id} started for {normalized_ticker}")
         return response
         
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error starting processing: {e}")
         raise HTTPException(status_code=500, detail="Internal server error starting processing")
@@ -296,7 +300,8 @@ async def start_company_processing(
 @router.get("/{ticker}/status")
 async def get_processing_status(
     ticker: str,
-    company_service: CompanyService = Depends(get_company_service)
+    company_service: CompanyService = Depends(get_company_service),
+    processing_service: ProcessingService = Depends(get_processing_service_dep)
 ):
     """
     Get the processing status for a company's SEC filings.
@@ -316,25 +321,128 @@ async def get_processing_status(
                 detail=f"Company with ticker '{ticker}' not found"
             )
         
-        # TODO: In future tasks, this will return actual processing status
-        # For now, return a mock status
-        status = {
-            "ticker": normalized_ticker,
-            "phase": "complete",  # scraping, parsing, chunking, vectorizing, complete, error
-            "progress": 100,
-            "documentsFound": 10,
-            "documentsProcessed": 10,
-            "chunksCreated": 150,
-            "chunksVectorized": 150,
-            "startedAt": "2024-01-01T00:00:00Z",
-            "completedAt": "2024-01-01T00:05:00Z"
-        }
+        # Get processing status
+        status = processing_service.get_processing_status(ticker=normalized_ticker)
         
-        logger.info(f"Processing status for {normalized_ticker}: {status['phase']}")
-        return status
+        if not status:
+            # No processing found for this ticker
+            return {
+                "ticker": normalized_ticker,
+                "phase": "not_started",
+                "progress": 0,
+                "documentsFound": 0,
+                "documentsProcessed": 0,
+                "chunksCreated": 0,
+                "chunksVectorized": 0,
+                "message": f"No processing found for {normalized_ticker}"
+            }
+        
+        result = status.to_dict()
+        logger.info(f"Processing status for {normalized_ticker}: {status.phase}")
+        return result
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting processing status: {e}")
         raise HTTPException(status_code=500, detail="Internal server error getting processing status")
+
+
+@router.get("/jobs/{job_id}/status")
+async def get_job_status(
+    job_id: str,
+    processing_service: ProcessingService = Depends(get_processing_service_dep)
+):
+    """
+    Get processing status by job ID.
+    
+    - **job_id**: Processing job ID
+    
+    Returns the current processing status and progress.
+    """
+    try:
+        logger.info(f"Getting job status for job ID: '{job_id}'")
+        
+        status = processing_service.get_processing_status(job_id=job_id)
+        
+        if not status:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Processing job '{job_id}' not found"
+            )
+        
+        result = status.to_dict()
+        logger.info(f"Job status for {job_id}: {status.phase}")
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting job status: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error getting job status")
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_processing_job(
+    job_id: str,
+    processing_service: ProcessingService = Depends(get_processing_service_dep)
+):
+    """
+    Cancel a processing job.
+    
+    - **job_id**: Processing job ID to cancel
+    
+    Returns cancellation result.
+    """
+    try:
+        logger.info(f"Cancelling processing job: '{job_id}'")
+        
+        success = processing_service.cancel_processing(job_id)
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Processing job '{job_id}' not found or already completed"
+            )
+        
+        result = {
+            "jobId": job_id,
+            "status": "cancelled",
+            "message": f"Processing job {job_id} has been cancelled"
+        }
+        
+        logger.info(f"Successfully cancelled job {job_id}")
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling job: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error cancelling job")
+
+
+@router.get("/jobs")
+async def list_processing_jobs(
+    processing_service: ProcessingService = Depends(get_processing_service_dep)
+):
+    """
+    List all processing jobs.
+    
+    Returns a list of all processing jobs with their current status.
+    """
+    try:
+        logger.info("Listing all processing jobs")
+        
+        jobs = processing_service.get_all_jobs()
+        
+        result = {
+            "jobs": [job.to_dict() for job in jobs],
+            "total": len(jobs)
+        }
+        
+        logger.info(f"Found {len(jobs)} processing jobs")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error listing jobs: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error listing jobs")
